@@ -5,6 +5,7 @@ using System;
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.Data;
+using System.Diagnostics;
 using System.Drawing;
 using System.IO;
 using System.Linq;
@@ -17,7 +18,7 @@ namespace bacteria_detection_v2
     public partial class Form1 : Form
     {
         public int imgCount = 1;
-
+        public string fileName;
         public double ThreshMin = 180;
         public double ThreshMax = 255;
         public int ThreshMode=0;
@@ -37,7 +38,7 @@ namespace bacteria_detection_v2
         }
 
         
-
+        //Jozef Csorgei -128253, Frantisek Bukor - 127989, Gabriel Cseh
         private void button1_Click(object sender, EventArgs e)
         {
             var img = new Bitmap(pictureBox1.Image)
@@ -92,9 +93,42 @@ namespace bacteria_detection_v2
 
             Image<Gray, Byte> umat = labels.Convert<Gray, Byte>();
 
+            Gray cannyThreshold = new Gray(50);
+            Gray cannyThresholdLinking = new Gray(30);
+            Gray circleAccumulatorThreshold = new Gray(50);
+
+            Image<Gray, Byte> cannyEdges = umat.Canny(cannyThreshold.Intensity, cannyThresholdLinking.Intensity);
+
+
+
+            var umatBgr = umat.Convert<Bgr, Byte>();
+       
+
+            var circles = img.Convert<Gray, Byte>().HoughCircles(
+            cannyThreshold,
+            circleAccumulatorThreshold,
+            0.3, //Resolution of the accumulator used to detect centers of the circles
+            cannyEdges.Height / 10, //min distance 
+            0, //min radius
+            300 //max radius
+            )[0]; //Get the circles from the first channel
+
+            listBox1.Items.Add($"{Path.GetFileName(fileName)} - Circle count: {circles.Count()}");
+
+            //draw circles (on original image)
+            foreach (CircleF circle in circles)
+            {
+                umatBgr.Draw(circle, new Bgr(Color.Brown), 2);
+                Debug.WriteLine("circle");
+            }
+
+
+            pictureBox1.Image = img.ToBitmap();
 
             _03Markers = umat;
             pictureBox2.Image = umat.ToBitmap();
+            pictureBox3.Image = umatBgr.ToBitmap();
+
 
             /* Image<Gray, byte> boundaries = labels.Convert<byte>(delegate (Int32 x)
              {
@@ -144,8 +178,8 @@ namespace bacteria_detection_v2
             CvInvoke.MorphologyEx(markers, markers, MorphOp.Erode, kernel1, new Point(-1, -1), 1, Emgu.CV.CvEnum.BorderType.Reflect, new MCvScalar(1.0)); // egy erode transzformációt csinálunk a grayscale képen, hogy eltüntessük a kisebb imperfekciókat a képen
             _02Markers = markers;
             _02Markers.Save($".\\{imgCount}\\02_markers.png");
-            
 
+           
             var labels = new Image<Gray, Int32>(markers.Size);
             
             markers.Data[10, 10, 0] = 255; //berajzolunk egy újabb elemet a képre, hogy a watershed ezt az elemet nyújtsa ki a háttérnek
@@ -155,6 +189,9 @@ namespace bacteria_detection_v2
             CvInvoke.Watershed(srcImg, labels);
 
             Image<Gray, Byte> umat = labels.Convert<Gray, Byte>();
+
+
+
 
 
             _03Markers = umat;
@@ -168,6 +205,7 @@ namespace bacteria_detection_v2
             if (openFileDialog1.ShowDialog() == DialogResult.OK)
             {
                 pictureBox1.Image = new Bitmap(openFileDialog1.FileName);
+                fileName = openFileDialog1.FileName;
             }
         }
 
@@ -227,6 +265,7 @@ namespace bacteria_detection_v2
 
         private void button3_Click(object sender, EventArgs e)
         {
+            imgCount = 1;
             DirectoryInfo d = new DirectoryInfo(@"images");
             FileInfo[] images = d.GetFiles("*.png");
 
@@ -235,6 +274,15 @@ namespace bacteria_detection_v2
                 var img = new Bitmap($".\\images\\{image.Name}");
                 watershedImage(img);
             }
+        }
+
+        private void pictureBox3_Click(object sender, EventArgs e)
+        {
+
+        }
+
+        private void listBox1_SelectedIndexChanged(object sender, EventArgs e)
+        {
         }
     }
 }
